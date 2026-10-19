@@ -1,0 +1,8 @@
+# Pinned versions of the Python lint / static-analysis tools used by
+# .github/workflows/python-lint.yml. Pins keep CI results reproducible; bump them
+# deliberately (or with Dependabot) and re-run the pipeline when you do.
+black==26.10.1
+ruff==0.17.0
+mypy==2.4.0
+pydoclint==0.11.1
+bandit[toml]==1.9.4

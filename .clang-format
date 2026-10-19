@@ -1,0 +1,9 @@
+---
+# TeraLink ClangFormat configuration (Software Design Document, section 4.4.2).
+# Mirrors the F Prime project style (nasa/fprime/.clang-format) so TeraLink code
+# and F Prime code are formatted identically.
+BasedOnStyle: Chromium
+IndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -2
+InsertNewlineAtEOF: true

@@ -1,0 +1,91 @@
+name: Python lint & static analysis
+
+# Drop-in pipeline for TeraLink Python repositories (Software Design Document 4.4.1).
+#
+# To adopt in another repo, copy this file, requirements-lint.txt, and the
+# [tool.*] tables from pyproject.toml, then edit PY_PATHS below.
+#
+# Checks (each is its own step, and every step runs even if an earlier one fails,
+# so one push shows all problems at once):
+#   Black      formatting
+#   Ruff       PEP 8, anti-patterns, PEP 257 docstring presence, type-hint presence
+#   Mypy       static type checking (strict)
+#   Pydoclint  docstrings agree with function signatures
+#   Bandit     security scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: Space-separated files or directories to check (default is set in PY_PATHS)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # EDIT PER REPOSITORY: space-separated files or directories to check, e.g. "src tests".
+  PY_PATHS: ${{ inputs.paths || 'examples/python/clean' }}
+
+jobs:
+  python-lint:
+    name: Python lint (py${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # The SDD sets Python 3.10 as the minimum; keep the newest supported release here too.
+        python-version: ["3.10", "3.13"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-lint.txt
+
+      - name: Install lint tools
+        run: python -m pip install -r requirements-lint.txt
+
+      # Mypy needs the project's own dependencies to resolve third-party imports.
+      - name: Install project requirements (if present)
+        run: |
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+
+      - name: Black (formatting)
+        if: ${{ !cancelled() }}
+        run: black --check --diff $PY_PATHS
+
+      - name: Ruff (PEP 8, anti-patterns, docstrings, annotations)
+        if: ${{ !cancelled() }}
+        run: ruff check --output-format=github $PY_PATHS
+
+      - name: Mypy (type checking)
+        if: ${{ !cancelled() }}
+        run: mypy $PY_PATHS
+
+      - name: Pydoclint (docstrings match signatures)
+        if: ${{ !cancelled() }}
+        run: pydoclint --config=pyproject.toml $PY_PATHS
+
+      - name: Bandit (security)
+        if: ${{ !cancelled() }}
+        run: bandit --configfile pyproject.toml --recursive $PY_PATHS

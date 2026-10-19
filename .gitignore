@@ -1,0 +1,6 @@
+# Tool caches and build output produced by the pipelines when run locally.
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+build/
+doxygen-out/

@@ -1,0 +1,71 @@
+# TeraLink shared Python tool configuration (Software Design Document, section 4.4.1).
+#
+# Copy these tables into the pyproject.toml of any Python repository. If the
+# repository already has a pyproject.toml, merge the [tool.*] tables instead of
+# replacing the file. The python-lint workflow reads this file; it contains no
+# project metadata on purpose.
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle: PEP 8 errors and warnings
+    "F",       # pyflakes: unused imports/variables, undefined names
+    "I",       # isort: import ordering
+    "N",       # pep8-naming
+    "D",       # pydocstyle: docstrings must be present and PEP 257 compliant
+    "ANN",     # flake8-annotations: full type hints
+    "UP",      # pyupgrade: modern syntax for the minimum supported Python
+    "B",       # flake8-bugbear: likely bugs and anti-patterns
+    "A",       # flake8-builtins: shadowing of builtins
+    "C4",      # flake8-comprehensions
+    "C90",     # mccabe: cyclomatic complexity
+    "SIM",     # flake8-simplify
+    "S",       # flake8-bandit: security checks (Bandit itself also runs in CI)
+    "T20",     # flake8-print: no stray print() calls
+    "RET",     # flake8-return
+    "ARG",     # flake8-unused-arguments
+    "PTH",     # prefer pathlib
+    "PL",      # pylint
+    "RUF",     # ruff-specific rules
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may use bare asserts, magic numbers, and need not be fully documented.
+"tests/**" = ["S101", "D", "ANN", "PLR2004"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+show_error_codes = true
+# Third-party packages without type stubs: add a per-module override instead of
+# loosening the global settings, for example:
+#
+# [[tool.mypy.overrides]]
+# module = "some_untyped_package.*"
+# ignore_missing_imports = true
+
+[tool.pydoclint]
+# Checks that docstrings agree with function signatures (Args/Returns/Raises).
+# Presence and formatting of docstrings is checked by Ruff's D rules above.
+style = "google"
+arg-type-hints-in-docstring = false
+check-return-types = false
+check-yield-types = false
+allow-init-docstring = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]

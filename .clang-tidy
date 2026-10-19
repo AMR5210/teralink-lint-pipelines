@@ -1,0 +1,52 @@
+---
+# TeraLink clang-tidy configuration (Software Design Document, section 4.4.2).
+#
+# This profile approximates the intent of MISRA C++:2023 and the JPL Institutional
+# Coding Standard using open-source checks. It does NOT certify MISRA compliance:
+# that needs a dedicated checker (the SDD names Parasoft and Coverity).
+#
+# Rough mapping to the JPL "Power of 10" rules:
+#   no recursion ............ misc-no-recursion
+#   no goto ................. cppcoreguidelines-avoid-goto
+#   short functions ......... readability-function-size (60 lines)
+#   check return values ..... bugprone-unused-return-value, cert-err33-c,
+#                             modernize-use-nodiscard
+#   no hidden dynamic memory  cppcoreguidelines-no-malloc, cppcoreguidelines-owning-memory
+#   static analysis clean ... clang-analyzer-*
+#   zero compiler warnings .. enforced by the -Werror build step in the workflow
+#
+# Apply this to hand-written TeraLink code only. Do not point it at F Prime itself
+# or at autocoded files (*Ac.cpp / *Ac.hpp): F Prime runs a much smaller profile.
+Checks: >
+    -*,
+    bugprone-*,
+    cert-*,
+    clang-analyzer-*,
+    concurrency-*,
+    cppcoreguidelines-*,
+    hicpp-*,
+    misc-*,
+    modernize-*,
+    performance-*,
+    portability-*,
+    readability-*,
+    -bugprone-easily-swappable-parameters,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+    -hicpp-no-array-decay,
+    -misc-include-cleaner,
+    -modernize-use-trailing-return-type,
+    -readability-identifier-length
+# Disabled checks, and why:
+#   bugprone-easily-swappable-parameters ...... very noisy on ordinary signatures
+#   cppcoreguidelines-avoid-magic-numbers ..... duplicate of readability-magic-numbers
+#   *-array-to-pointer-decay / hicpp-no-array-decay  flags every string literal passed to a function
+#   misc-include-cleaner ...................... noisy; revisit once headers are stable
+#   modernize-use-trailing-return-type ........ style preference, not a defect
+#   readability-identifier-length ............. style preference, not a defect
+WarningsAsErrors: '*'
+CheckOptions:
+    - key: readability-function-size.LineThreshold
+      value: '60'
+    - key: readability-function-cognitive-complexity.Threshold
+      value: '15'

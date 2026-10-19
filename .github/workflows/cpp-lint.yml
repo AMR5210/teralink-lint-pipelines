@@ -1,0 +1,125 @@
+name: C/C++ lint & static analysis
+
+# Drop-in pipeline for TeraLink C/C++ repositories (Software Design Document 4.4.2).
+#
+# To adopt in another repo, copy this file, .clang-format, .clang-tidy and Doxyfile,
+# then edit CPP_SRC_DIRS and CMAKE_SOURCE_DIR below.
+#
+# Checks (each is its own step, and every step runs even if an earlier one fails):
+#   ClangFormat  formatting (F Prime style)
+#   Build        compiles with -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror (C11 / C++17)
+#   Clang-Tidy   bug, CERT, and MISRA/JPL-style checks (see .clang-tidy)
+#   Doxygen      every public entity is documented; warnings fail the build
+#
+# F Prime projects: replace the "Configure" step with
+#   fprime-util generate -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+# and point BUILD_DIR at the build cache it creates. Keep CPP_SRC_DIRS limited to
+# hand-written code (not autocoded *Ac.cpp files and not the fprime/ submodule).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      src-dirs:
+        description: Space-separated source directories to check (default is set in CPP_SRC_DIRS)
+        required: false
+        type: string
+      cmake-source-dir:
+        description: Directory containing the top-level CMakeLists.txt (default is set in CMAKE_SOURCE_DIR)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # EDIT PER REPOSITORY.
+  # Space-separated directories of hand-written C/C++ code to check.
+  CPP_SRC_DIRS: ${{ inputs.src-dirs || 'examples/cpp/clean/include examples/cpp/clean/src' }}
+  # Directory containing the top-level CMakeLists.txt.
+  CMAKE_SOURCE_DIR: ${{ inputs.cmake-source-dir || 'examples/cpp/clean' }}
+  # Compiler warnings treated as errors (JPL rule: compile with all warnings enabled, zero warnings).
+  WARNING_FLAGS: -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Werror
+  BUILD_DIR: build
+  LLVM_VERSION: "18"
+
+jobs:
+  cpp-lint:
+    name: C/C++ lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            "clang-format-${LLVM_VERSION}" "clang-tidy-${LLVM_VERSION}" "clang-tools-${LLVM_VERSION}" doxygen
+
+      - name: ClangFormat (formatting)
+        run: |
+          find $CPP_SRC_DIRS -type f \
+            \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.cxx' \
+               -o -name '*.h' -o -name '*.hh' -o -name '*.hpp' -o -name '*.hxx' \) -print0 |
+            xargs -0 -r "clang-format-${LLVM_VERSION}" --dry-run --Werror
+
+      - name: Configure (also writes compile_commands.json for Clang-Tidy)
+        if: ${{ !cancelled() }}
+        run: |
+          cmake -S "$CMAKE_SOURCE_DIR" -B "$BUILD_DIR" \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_C_STANDARD=11 -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF \
+            -DCMAKE_C_FLAGS="$WARNING_FLAGS" -DCMAKE_CXX_FLAGS="$WARNING_FLAGS"
+
+      - name: Build (warnings are errors)
+        if: ${{ !cancelled() }}
+        run: cmake --build "$BUILD_DIR" --parallel
+
+      - name: Clang-Tidy (static analysis)
+        if: ${{ !cancelled() }}
+        run: |
+          dirs_regex=$(echo $CPP_SRC_DIRS | tr ' ' '|')
+          run-clang-tidy-${LLVM_VERSION} \
+            -clang-tidy-binary "$(command -v clang-tidy-${LLVM_VERSION})" \
+            -p "$BUILD_DIR" -quiet -j "$(nproc)" \
+            -header-filter "^${GITHUB_WORKSPACE}/(${dirs_regex})/" \
+            "^${GITHUB_WORKSPACE}/(${dirs_regex})/.*\.(c|cc|cpp|cxx)\$"
+
+      - name: Doxygen (documentation coverage)
+        id: doxygen
+        if: ${{ !cancelled() }}
+        run: |
+          # Doxygen only reports undocumented members in files that have an @file block and
+          # silently skips every other file, so require the block explicitly.
+          missing=$(find $CPP_SRC_DIRS -type f \
+            \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.cxx' \
+               -o -name '*.h' -o -name '*.hh' -o -name '*.hpp' -o -name '*.hxx' \) -print0 |
+            xargs -0 -r grep -L -E '[@\\]file' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::These files have no Doxygen @file block, so Doxygen would skip them:"
+            echo "$missing"
+            exit 1
+          fi
+          (cat Doxyfile; echo "INPUT = $CPP_SRC_DIRS") | doxygen -
+
+      - name: Upload generated documentation
+        if: ${{ !cancelled() && steps.doxygen.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: doxygen-html
+          path: doxygen-out/html
+          retention-days: 7

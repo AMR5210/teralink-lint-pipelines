@@ -1,0 +1,23 @@
+# TeraLink Doxygen configuration (Software Design Document, section 4.4.2).
+# Only non-default settings are listed. The cpp-lint workflow overrides INPUT
+# from its CPP_SRC_DIRS variable, so edit it there rather than here.
+
+PROJECT_NAME           = "TeraLink"
+OUTPUT_DIRECTORY       = doxygen-out
+INPUT                  = include src
+RECURSIVE              = YES
+FILE_PATTERNS          = *.c *.cpp *.cc *.cxx *.h *.hpp *.hh *.hxx
+
+# Undocumented public API is an error, not a suggestion.
+EXTRACT_ALL            = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_NO_PARAMDOC       = YES
+WARN_AS_ERROR          = FAIL_ON_WARNINGS
+
+QUIET                  = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HAVE_DOT               = NO
